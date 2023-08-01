@@ -11,11 +11,13 @@ object TextAnalysis extends App {
   val stopWordsData = spark.sparkContext.textFile("src/main/resources/StopWords/*.txt")
   val positiveWordsData=spark.sparkContext.textFile("src/main/resources/MasterDictionary/positive-words.txt")
   val negativeWordsData=spark.sparkContext.textFile("src/main/resources/MasterDictionary/negative-words.txt")
+  val punctuationsData = Set('!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~')
   val urlLinksDF = spark.read.format("com.crealytics.spark.excel").option("header","true").load("src/main/resources/Input.xlsx")
   val stopWords = spark.sparkContext.broadcast(stopWordsData.map(_.split(" ")(0)).map(_.toLowerCase).collect().toSet)
   val positiveWords = spark.sparkContext.broadcast(positiveWordsData.subtract(stopWordsData).collect().toSet)
   val negativeWords = spark.sparkContext.broadcast(negativeWordsData.subtract(stopWordsData).collect().toSet)
-  val punctuations = Set('!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~')
+  val punctuations = spark.sparkContext.broadcast(punctuationsData)
+
 
   def get_data(url: String): String = {
     try {
@@ -61,7 +63,7 @@ object TextAnalysis extends App {
 
   def Analysis(text: String): Map[String, Double] = {
     val tokens = text.toLowerCase.split("\\s+")
-    val tokens_without_pun = tokens.map(token => token.filterNot(punctuations.contains))
+    val tokens_without_pun = tokens.map(token => token.filterNot(punctuations.value.contains))
     val tokens_clean = tokens_without_pun.filterNot(stopWords.value.contains)
     val positive_score = tokens_clean.count(positiveWords.value.contains).toDouble
     val negative_score = tokens_clean.count(negativeWords.value.contains).toDouble
